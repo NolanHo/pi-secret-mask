@@ -1,0 +1,57 @@
+{
+  "name": "pi-secret-mask",
+  "version": "0.1.0",
+  "description": "Pi extension that masks secrets from LLM context while allowing tool-boundary use via secret references.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/NolanHo/pi-secret-mask#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NolanHo/pi-secret-mask.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NolanHo/pi-secret-mask/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "secret-mask",
+    "redaction",
+    "llm"
+  ],
+  "files": [
+    "extensions",
+    "src",
+    "tests",
+    "README.md",
+    "README_zh.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "exports": {
+    ".": "./extensions/index.ts",
+    "./extensions/*": "./extensions/*",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-agent-core": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  }
+}
