@@ -2,9 +2,11 @@
 
 English: [README.md](README.md)
 
-`pi-secret-mask` 会在 Pi 把上下文发给 LLM 之前遮蔽新出现的 secret. 模型只能看到 `secret_ref` 标记, 并且可以在工具参数里传入 `${secret:psm_mask_*}` 来使用 secret. 插件会在工具执行边界把真实值注入进去.
+`pi-secret-mask` 是一个 Pi extension, 会在 secret 发送给 LLM 前遮蔽它. 在模型可见的文本里, secret 会被替换成类似 `[secret_ref id=psm_mask_example ...]` 的 marker. 如果模型之后把 `${secret:psm_mask_example}` 传给工具, 插件只会在这次工具调用边界恢复真实值.
 
 ## 安装
+
+前提: 本机已经安装 Pi, 并且可以运行 `pi` 命令.
 
 从 GitHub 安装:
 
@@ -12,7 +14,7 @@ English: [README.md](README.md)
 pi install https://github.com/NolanHo/pi-secret-mask
 ```
 
-不安装直接测试:
+不永久安装, 只在本次 Pi 运行中加载 extension:
 
 ```bash
 pi -e https://github.com/NolanHo/pi-secret-mask
@@ -21,16 +23,11 @@ pi -e https://github.com/NolanHo/pi-secret-mask
 从本地 clone 安装:
 
 ```bash
-pi install ./pi-secret-mask
+cd /path/to/pi-secret-mask
+pi install .
 ```
 
-发布到 npm 后安装:
-
-```bash
-pi install npm:pi-secret-mask
-```
-
-运行时命令:
+在 Pi 会话内使用:
 
 ```text
 /secret-mask status
@@ -38,32 +35,34 @@ pi install npm:pi-secret-mask
 /secret-mask off
 ```
 
+Masking 默认启用.
+
 ## 行为
 
-启用后, 插件覆盖它能控制的 model-facing 路径:
+启用后, 插件会遮蔽它能控制的、会发给模型的文本:
 
-1. `context`: 在普通 provider request 前遮蔽对话上下文.
-2. `before_provider_request`: 在最终 provider payload 上再扫一遍, 作为最后防线.
-3. `session_before_compact`: 如果 compaction 输入里发现 secret, 生成 masked summary, 不让默认 raw compaction 继续.
-4. `session_before_tree`: 如果 branch summary 输入里发现 secret, 生成 masked branch summary.
-5. `tool_call`: 把工具参数中的 `${secret:psm_mask_*}` 替换成本地保存的真实 secret.
-6. `tool_result`: 从成功的工具输出里 redact 被注入过的 secret.
+1. 发给模型的聊天上下文.
+2. 最终 provider request, 作为最后一层扫描.
+3. compaction 生成的对话总结.
+4. branch summary.
+5. 使用 `${secret:<id>}` reference 的工具参数.
+6. 成功的工具输出, 其中被注入过的 secret 会再次被 redact.
 
 遮蔽后的值类似这样:
 
 ```text
-OPENAI_API_KEY=[secret_ref id=psm_mask_0123456789abcdef01234567 label=secret chars=51. Use ${secret:psm_mask_0123456789abcdef01234567} in tool arguments to use this secret without reading it.]
+OPENAI_API_KEY=[secret_ref id=psm_mask_example label=secret chars=51. Use ${secret:psm_mask_example} in tool arguments to use this secret without reading it.]
 ```
 
-模型可以使用 secret:
+模型可以把 reference 传给工具来使用 secret:
 
 ```json
 {
-  "command": "curl -H 'Authorization: Bearer ${secret:psm_mask_0123456789abcdef01234567}' https://api.example.com/me"
+  "command": "curl -H 'Authorization: Bearer ${secret:psm_mask_example}' https://api.example.com/me"
 }
 ```
 
-模型不能通过这个插件读取 secret. 插件不提供读取 `psm_mask_*` artifact 的 recall 工具.
+这个 extension 不提供把已存储 secret 打印回聊天窗口的命令或工具. 为了支持后续工具调用, 原始 secret 会保存在 Pi 数据目录下的本地磁盘中.
 
 ## Artifact 存储
 
@@ -73,15 +72,13 @@ Secret 保存在:
 ~/.pi/agent/pi-secret-mask/<session-id>/psm_mask_<hash>.json
 ```
 
-文件用 `0600` 权限写入. 同一个 session 内, 相同 pattern, source path, secret value 会得到确定性的 artifact id.
+文件用 `0600` 权限写入.
 
 ## Compaction 和 tree summary
 
-普通 `context` hook 不等于 Pi 默认 compaction 一定会使用 masked messages. 所以这个插件单独注册了 `session_before_compact` 和 `session_before_tree`, 处理这两类模型调用.
+Pi 可能会总结较早的对话轮次和 branch history. 这个 extension 也会尝试在这些总结里遮蔽 secret. 如果总结内容包含匹配到的 secret, 但 extension 无法生成 masked summary, 它会阻止这次总结, 而不是让 raw secret 进入总结.
 
-如果 compaction 输入没有新匹配到的 secret, 插件让 Pi 使用默认 compaction. 如果 compaction 输入包含匹配到的 secret, 插件生成 masked summary. 如果 masked summary 生成失败, 插件会取消 compaction, 不会 fallback 到默认 raw compaction.
-
-这个保护从插件加载后开始生效. 安装插件之前已经写入旧 session 的 raw secret 不在保护范围内.
+这个保护从 extension 加载后开始生效. 安装 extension 之前已经写入旧 summary 的 secret 不在保护范围内.
 
 ## 匹配规则
 
@@ -91,12 +88,12 @@ Secret 保存在:
 |---|---|---|
 | `private-key-block` | 从 `BEGIN ... PRIVATE KEY` 到 `END ... PRIVATE KEY` 的 PEM private key block | RSA, EC, OpenSSH-style private key PEM blocks |
 | `auth-header-token` | `Bearer`, `Basic`, `Token` 凭证, 前面可以带 `Authorization:` 或 `Authorization=` | `Authorization: Bearer eyJ...`, `Token abcdef...` |
-| `sensitive-query-param` | URL query 参数: `access_token`, `refresh_token`, `id_token`, `client_secret`, `code`, `code_verifier`, `code_challenge`, `state`, `nonce` | `?access_token=abc123...`, `&client_secret=s3cr3t...` |
-| `secret-assignment` | key 名包含 `API_KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `PRIVATE_KEY`, `CLIENT_SECRET`, `AUTH` 的赋值 | `OPENAI_API_KEY=sk-...`, `password: hunter2long` |
+| `sensitive-query-param` | URL query 参数: `access_token`, `refresh_token`, `id_token`, `client_secret`, `code`, `code_verifier`, `code_challenge`, `state`, `nonce` | `?access_token=abc123...&client_secret=def456...` |
+| `secret-assignment` | key 名包含 `API_KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `PRIVATE_KEY`, `CLIENT_SECRET`, `AUTH` 的赋值 | `OPENAI_API_KEY=sk-...`, `password: my-secret-password` |
 | `json-secret-field` | quoted JSON-like 字段: `api_key`, `access_token`, `refresh_token`, `id_token`, `secret`, `password`, `private_key`, `client_secret`, `authorization` | `"api_key": "sk-..."`, `'password': '...'` |
 | `known-token-prefix` | 常见 token prefix | `sk-`, `sk-ant-`, `sk-proj-`, `ghp_`, `github_pat_`, `glpat-`, `xoxb-`, `npm_`, `pypi-`, `hf_`, `AIza`, `AKIA`, `ASIA` |
 
-为了降低误报, 规则带有长度阈值:
+长度阈值用于降低误报:
 
 - auth header token body: 至少 16 个字符
 - sensitive query value: 至少 8 个字符
@@ -109,7 +106,7 @@ Secret 保存在:
 
 配置文件按顺序加载:
 
-1. 全局: `$PI_CODING_AGENT_DIR/pi-secret-mask/config.json`; 如果没有设置 `PI_CODING_AGENT_DIR`, 则使用 `~/.pi/agent/pi-secret-mask/config.json`.
+1. 全局: `<Pi data dir>/pi-secret-mask/config.json`. Pi data dir 是 `$PI_CODING_AGENT_DIR` 覆盖值; 如果没有覆盖, 默认是 `~/.pi/agent`.
 2. 项目: `<cwd>/.pi/secret-mask.json`.
 3. 显式指定: `PI_SECRET_MASK_CONFIG` 指向的路径.
 
@@ -184,7 +181,7 @@ Regex match 示例, 保留 prefix, 只 mask capture group 1:
 - 被拆到多个 text block 里的 secret
 - 特殊换行格式里的 secret
 - 二进制文件或图片内容
-- 插件加载前已经进入旧 compaction summary 的 secret
+- extension 加载前已经进入旧 compaction summary 的 secret
 
 如果你的环境有自定义 token 格式, 在配置文件里添加 literal 或 regex pattern.
 
@@ -198,6 +195,6 @@ Regex match 示例, 保留 prefix, 只 mask capture group 1:
 - artifact 文件的文件系统级隔离
 - 安装前已经存在于 session history 的 raw secret
 - 工具主动 echo 注入的 secret
-- 某些 Pi 版本里, `isError` 为 true 时会忽略 `tool_result` patch 的失败工具调用
+- 失败工具调用在 error output 里暴露注入过的 secret
 
-成功的工具结果可以被这个插件 redact, 但某些 Pi 版本会丢弃失败工具调用的 `tool_result` 修改. 使用 `${secret:...}` 时避免 echo secret, `set -x`, verbose auth debug log, shell trace.
+某些 Pi 版本中, 失败的工具调用仍可能在 error output 里暴露注入过的 secret. 使用 `${secret:...}` reference 时, 避免 echo secret, shell tracing (`set -x`), verbose auth/debug logging.
