@@ -37,6 +37,18 @@ Inside a Pi session, use:
 
 Masking is enabled by default.
 
+## How it works
+
+There are two separate steps: masking before model context, then temporary restoration only when a tool needs the secret.
+
+### 1. Before the model sees the message
+
+![Secret masking before model context](assets/llm-masking-flow.svg)
+
+### 2. When a tool needs the secret
+
+![Secret reference use at the tool boundary](assets/tool-boundary-flow.svg)
+
 ## Behavior
 
 When enabled, the extension masks secrets in model-facing text it controls:

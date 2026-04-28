@@ -37,6 +37,18 @@ pi install .
 
 Masking 默认启用.
 
+## 工作方式
+
+这里有两个独立步骤: 先在模型看到上下文前 mask, 然后只在工具需要 secret 时临时恢复.
+
+### 1. 模型看到消息之前
+
+![Secret masking before model context](assets/llm-masking-flow.svg)
+
+### 2. 工具需要 secret 时
+
+![Secret reference use at the tool boundary](assets/tool-boundary-flow.svg)
+
 ## 行为
 
 启用后, 插件会遮蔽它能控制的、会发给模型的文本:

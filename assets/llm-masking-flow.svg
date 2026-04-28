@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="500" viewBox="0 0 960 500" role="img" aria-labelledby="title desc">
+  <title id="title">Secret stays local before model context</title>
+  <desc id="desc">A message with a secret is processed by pi-secret-mask. The raw value is stored locally and the model sees only a marker.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#52534e"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#c4512f"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .panel { fill: #fffdf8; stroke: #d7d2c4; stroke-width: 1.2; }
+      .box { fill: #fffdf8; stroke: #282a25; stroke-width: 1.4; }
+      .soft { fill: #f0eee6; stroke: #8a8578; stroke-width: 1.2; }
+      .accent { fill: #fff0ea; stroke: #c4512f; stroke-width: 1.6; }
+      .store { fill: #f1f3ef; stroke: #6d7368; stroke-width: 1.2; }
+      .line { fill: none; stroke: #52534e; stroke-width: 1.7; marker-end: url(#arrow); }
+      .line-accent { fill: none; stroke: #c4512f; stroke-width: 2; marker-end: url(#arrow-accent); }
+      .text { fill: #171812; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { fill: #52534e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .title { font-size: 25px; font-weight: 650; }
+      .label { font-size: 17px; font-weight: 650; }
+      .small { font-size: 14px; }
+      .code { font-size: 13px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="960" height="500"/>
+  <rect class="panel" x="24" y="24" width="912" height="452" rx="14"/>
+
+  <text class="text title" x="56" y="70">Before the model sees the message</text>
+  <text class="mono small" x="56" y="96">The raw secret is stored locally. The model receives a marker.</text>
+
+  <path class="line" d="M206 220 C238 220 260 220 292 220"/>
+  <path class="line-accent" d="M462 220 C494 220 516 220 548 220"/>
+  <path class="line" d="M718 220 C750 220 772 220 804 220"/>
+  <path class="line" d="M633 292 C633 328 633 354 633 386"/>
+
+  <rect class="soft" x="56" y="160" width="150" height="120" rx="8"/>
+  <text class="text label" x="131" y="206" text-anchor="middle">User message</text>
+  <text class="mono small" x="131" y="234" text-anchor="middle">contains secret</text>
+
+  <rect class="box" x="292" y="160" width="170" height="120" rx="8"/>
+  <text class="text label" x="377" y="206" text-anchor="middle">Message in Pi</text>
+  <text class="mono small" x="377" y="234" text-anchor="middle">before masking</text>
+
+  <rect class="accent" x="548" y="160" width="170" height="120" rx="8"/>
+  <text class="text label" x="633" y="202" text-anchor="middle">pi-secret-mask</text>
+  <text class="mono small" x="633" y="230" text-anchor="middle">replace raw value</text>
+  <text class="mono small" x="633" y="252" text-anchor="middle">with marker</text>
+
+  <rect class="soft" x="804" y="160" width="100" height="120" rx="8"/>
+  <text class="text label" x="854" y="206" text-anchor="middle">Model</text>
+  <text class="mono small" x="854" y="234" text-anchor="middle">marker only</text>
+
+  <rect class="store" x="512" y="386" width="242" height="64" rx="8"/>
+  <text class="text label" x="633" y="414" text-anchor="middle">Local secret file</text>
+  <text class="mono small" x="633" y="438" text-anchor="middle">stored only on your machine</text>
+
+  <rect class="panel" x="80" y="344" width="340" height="80" rx="8"/>
+  <text class="text label" x="104" y="374">Model-visible text</text>
+  <text class="mono code" x="104" y="398">OPENAI_API_KEY=</text>
+  <text class="mono code" x="104" y="418">[secret_ref id=psm_mask_example]</text>
+</svg>

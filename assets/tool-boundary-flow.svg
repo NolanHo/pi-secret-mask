@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Secret is restored only for the tool call</title>
+  <desc id="desc">The model sends a secret reference, pi-secret-mask loads the local value, the tool receives the real secret, and the model receives a redacted result.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#52534e"/>
+    </marker>
+    <marker id="arrow-accent" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#c4512f"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .panel { fill: #fffdf8; stroke: #d7d2c4; stroke-width: 1.2; }
+      .actor { fill: #fffdf8; stroke: #282a25; stroke-width: 1.3; }
+      .accent { fill: #fff0ea; stroke: #c4512f; stroke-width: 1.5; }
+      .store { fill: #f1f3ef; stroke: #6d7368; stroke-width: 1.2; }
+      .life { stroke: #9b9689; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .active { fill: #ebe7db; stroke: #6d7368; stroke-width: 0.9; }
+      .line { fill: none; stroke: #52534e; stroke-width: 1.6; marker-end: url(#arrow); }
+      .line-return { fill: none; stroke: #52534e; stroke-width: 1.6; stroke-dasharray: 5 4; marker-end: url(#arrow); }
+      .line-accent { fill: none; stroke: #c4512f; stroke-width: 2; marker-end: url(#arrow-accent); }
+      .text { fill: #171812; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .mono { fill: #52534e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .title { font-size: 25px; font-weight: 650; }
+      .label { font-size: 17px; font-weight: 650; }
+      .small { font-size: 14px; }
+      .code { font-size: 13px; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="960" height="540"/>
+  <rect class="panel" x="24" y="24" width="912" height="492" rx="14"/>
+
+  <text class="text title" x="56" y="70">When a tool needs the secret</text>
+  <text class="mono small" x="56" y="96">The model sends a reference. The tool receives the raw value. The model does not.</text>
+
+  <rect class="actor" x="82" y="132" width="142" height="58" rx="8"/>
+  <text class="text label" x="153" y="166" text-anchor="middle">Model</text>
+
+  <rect class="accent" x="300" y="132" width="176" height="58" rx="8"/>
+  <text class="text label" x="388" y="166" text-anchor="middle">pi-secret-mask</text>
+
+  <rect class="actor" x="570" y="132" width="142" height="58" rx="8"/>
+  <text class="text label" x="641" y="166" text-anchor="middle">Tool</text>
+
+  <rect class="store" x="786" y="132" width="126" height="58" rx="8"/>
+  <text class="text label" x="849" y="166" text-anchor="middle">Local file</text>
+
+  <line class="life" x1="153" y1="190" x2="153" y2="470"/>
+  <line class="life" x1="388" y1="190" x2="388" y2="470"/>
+  <line class="life" x1="641" y1="190" x2="641" y2="470"/>
+  <line class="life" x1="849" y1="190" x2="849" y2="470"/>
+
+  <rect class="active" x="384" y="226" width="8" height="210" rx="3"/>
+  <rect class="active" x="637" y="328" width="8" height="70" rx="3"/>
+
+  <path class="line" d="M153 262 H382"/>
+  <text class="mono code" x="174" y="222">tool arg contains</text>
+  <text class="mono code" x="174" y="240">${secret:psm_mask_example}</text>
+
+  <path class="line" d="M392 286 H843"/>
+  <text class="mono small" x="478" y="274">load stored secret</text>
+
+  <path class="line-return" d="M843 318 H392"/>
+  <text class="mono small" x="488" y="306">raw value stays inside extension</text>
+
+  <path class="line-accent" d="M392 360 H637"/>
+  <text class="mono small" x="444" y="348">run tool with real value</text>
+
+  <path class="line-return" d="M637 412 H392"/>
+  <text class="mono small" x="452" y="400">tool output</text>
+
+  <path class="line" d="M382 448 H157"/>
+  <text class="mono small" x="184" y="436">redacted result</text>
+
+  <rect class="panel" x="86" y="478" width="788" height="34" rx="8"/>
+  <text class="mono small" x="106" y="500">Only the tool call gets the raw value. Chat context keeps a marker or redacted placeholder.</text>
+</svg>
