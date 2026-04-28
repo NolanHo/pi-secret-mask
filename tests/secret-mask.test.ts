@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { SecretArtifactStore } from "../src/artifacts.js";
+import { patternsFromConfigObject } from "../src/config.js";
 import { projectMessages, projectText } from "../src/project.js";
 import { injectSecretReferences, redactInjectedSecrets, replaceRecordContents } from "../src/secret-ref.js";
 
@@ -85,4 +86,40 @@ test("replaceRecordContents mutates tool input objects in place", () => {
 	const target = { command: "old", keep: true } as Record<string, unknown>;
 	replaceRecordContents(target, { command: "new" });
 	assert.deepEqual(target, { command: "new" });
+});
+
+test("configured literal patterns mask exact user secrets", () => {
+	withStore((store) => {
+		const config = patternsFromConfigObject({
+			patterns: [{ type: "literal", name: "personal-password", value: "correct horse battery staple", label: "password" }],
+		});
+		assert.deepEqual(config.errors, []);
+
+		const projected = projectText("password is correct horse battery staple", "test.config.literal", store, config.patterns);
+		assert.equal(projected.maskCount, 1);
+		assert.doesNotMatch(projected.value, /correct horse battery staple/);
+		assert.match(projected.value, /label=password/);
+	});
+});
+
+test("configured regex patterns can mask a capture group while preserving prefix", () => {
+	withStore((store) => {
+		const config = patternsFromConfigObject({
+			patterns: [
+				{
+					type: "regex",
+					name: "legacy-password",
+					pattern: "legacy_password=([^\\s]+)",
+					secretGroup: 1,
+					label: "legacy password",
+				},
+			],
+		});
+		assert.deepEqual(config.errors, []);
+
+		const projected = projectText("legacy_password=my-private-password", "test.config.regex", store, config.patterns);
+		assert.equal(projected.maskCount, 1);
+		assert.match(projected.value, /^legacy_password=\[secret_ref id=psm_mask_[a-f0-9]{24}/);
+		assert.doesNotMatch(projected.value, /my-private-password/);
+	});
 });

@@ -8,7 +8,7 @@ export interface SecretPattern {
 	replace(match: RegExpExecArray, artifactId: string): string;
 }
 
-function secretMarker(id: string, label: string, chars: number): string {
+export function secretMarker(id: string, label: string, chars: number): string {
 	return `[secret_ref id=${id} label=${label} chars=${chars}. Use ${secretReference(id)} in tool arguments to use this secret without reading it.]`;
 }
 

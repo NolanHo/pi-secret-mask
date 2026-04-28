@@ -103,6 +103,77 @@ Length thresholds exist to reduce false positives:
 - assignment value: at least 8 chars
 - known-prefix suffix: at least 12 chars after the prefix expression
 
+## Custom matching config
+
+You can add custom literal or regex patterns without editing package source.
+
+Config files are loaded in this order:
+
+1. Global: `$PI_CODING_AGENT_DIR/pi-secret-mask/config.json`, or `~/.pi/agent/pi-secret-mask/config.json` when `PI_CODING_AGENT_DIR` is unset.
+2. Project: `<cwd>/.pi/secret-mask.json`.
+3. Explicit: path from `PI_SECRET_MASK_CONFIG`.
+
+Later files add patterns; they do not disable default patterns.
+
+Literal match example for a user-specific password or token:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "literal",
+      "name": "personal-db-password",
+      "value": "correct horse battery staple",
+      "label": "database password"
+    }
+  ]
+}
+```
+
+Regex match example where the full match is the secret:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "regex",
+      "name": "internal-token",
+      "pattern": "INTERNAL_[A-Za-z0-9]{32}",
+      "label": "internal token"
+    }
+  ]
+}
+```
+
+Regex match example preserving a prefix and masking capture group 1:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "regex",
+      "name": "legacy-password-field",
+      "pattern": "legacy_password=([^\\s]+)",
+      "secretGroup": 1,
+      "label": "legacy password"
+    }
+  ]
+}
+```
+
+Pattern fields:
+
+| Field | Applies to | Meaning |
+|---|---|---|
+| `type` | all | `literal` or `regex` |
+| `name` | all | Stable name used in artifact metadata |
+| `label` | all | Human-readable marker label shown to the model |
+| `value` | literal | Exact string to mask |
+| `caseSensitive` | literal | Defaults to `true`; set `false` for case-insensitive literal matching |
+| `pattern` | regex | JavaScript regular expression source string |
+| `flags` | regex | JavaScript regex flags; `g` is added automatically, `y` is removed |
+| `secretGroup` | regex | Capture group to store and mask; defaults to `0` for the full match |
+
 ## Common non-matches
 
 The extension will not reliably catch:
@@ -114,7 +185,7 @@ The extension will not reliably catch:
 - binary files or image content
 - secrets already summarized into old compaction entries before this extension was loaded
 
-If your environment uses a custom token format, add a new pattern in `src/patterns.ts` before publishing or installing for that environment.
+If your environment uses a custom token format, add a literal or regex entry to the config file.
 
 ## Security boundary
 

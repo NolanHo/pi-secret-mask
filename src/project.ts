@@ -2,6 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { SessionEntry, SessionMessageEntry } from "@mariozechner/pi-coding-agent";
 import type { SecretArtifactStore } from "./artifacts.js";
 import { secretPatterns } from "./patterns.js";
+import type { SecretPattern } from "./patterns.js";
 
 export interface ProjectionResult<T> {
 	value: T;
@@ -48,10 +49,15 @@ function replaceWithExec(text: string, pattern: RegExp, replacer: (match: RegExp
 	return result + text.slice(lastIndex);
 }
 
-export function projectText(text: string, sourcePath: string, store: SecretArtifactStore): ProjectionResult<string> {
+export function projectText(
+	text: string,
+	sourcePath: string,
+	store: SecretArtifactStore,
+	patterns: SecretPattern[] = secretPatterns,
+): ProjectionResult<string> {
 	let next = text;
 	let maskCount = 0;
-	for (const spec of secretPatterns) {
+	for (const spec of patterns) {
 		next = replaceWithExec(next, spec.pattern, (match) => {
 			const secret = spec.secret(match);
 			const artifact = store.putSecret({ content: secret, sourcePath, pattern: spec.name });
@@ -62,20 +68,25 @@ export function projectText(text: string, sourcePath: string, store: SecretArtif
 	return { value: next, maskCount };
 }
 
-export function projectMessage<T extends AgentMessage>(message: T, sourcePath: string, store: SecretArtifactStore): ProjectionResult<T> {
+export function projectMessage<T extends AgentMessage>(
+	message: T,
+	sourcePath: string,
+	store: SecretArtifactStore,
+	patterns: SecretPattern[] = secretPatterns,
+): ProjectionResult<T> {
 	const carrier = message as ContentCarrier;
 	const content = carrier.content;
 	let maskCount = 0;
 	let nextContent: unknown = content;
 
 	if (typeof content === "string") {
-		const projected = projectText(content, `${sourcePath}.content`, store);
+		const projected = projectText(content, `${sourcePath}.content`, store, patterns);
 		maskCount += projected.maskCount;
 		nextContent = projected.value;
 	} else if (Array.isArray(content)) {
 		nextContent = content.map((block, i) => {
 			if (!isTextBlock(block)) return block;
-			const projected = projectText(block.text, `${sourcePath}.content.${i}.text`, store);
+			const projected = projectText(block.text, `${sourcePath}.content.${i}.text`, store, patterns);
 			maskCount += projected.maskCount;
 			return projected.maskCount === 0 ? block : { ...block, text: projected.value };
 		});
@@ -89,10 +100,11 @@ export function projectMessages<T extends AgentMessage>(
 	messages: T[],
 	store: SecretArtifactStore,
 	sourcePath: string,
+	patterns: SecretPattern[] = secretPatterns,
 ): ProjectionResult<T[]> {
 	let maskCount = 0;
 	const value = messages.map((message, i) => {
-		const projected = projectMessage(message, `${sourcePath}.${i}`, store);
+		const projected = projectMessage(message, `${sourcePath}.${i}`, store, patterns);
 		maskCount += projected.maskCount;
 		return projected.value;
 	});
@@ -103,24 +115,30 @@ export function projectSessionEntries<T extends SessionEntry>(
 	entries: T[],
 	store: SecretArtifactStore,
 	sourcePath: string,
+	patterns: SecretPattern[] = secretPatterns,
 ): ProjectionResult<T[]> {
 	let maskCount = 0;
 	const value = entries.map((entry, i) => {
 		if (entry.type !== "message") return entry;
 		const messageEntry = entry as unknown as SessionMessageEntry;
-		const projected = projectMessage(messageEntry.message, `${sourcePath}.${i}.message`, store);
+		const projected = projectMessage(messageEntry.message, `${sourcePath}.${i}.message`, store, patterns);
 		maskCount += projected.maskCount;
 		return projected.maskCount === 0 ? entry : ({ ...messageEntry, message: projected.value } as unknown as T);
 	});
 	return { value, maskCount };
 }
 
-export function projectUnknownStrings(value: unknown, store: SecretArtifactStore, sourcePath: string): ProjectionResult<unknown> {
-	if (typeof value === "string") return projectText(value, sourcePath, store);
+export function projectUnknownStrings(
+	value: unknown,
+	store: SecretArtifactStore,
+	sourcePath: string,
+	patterns: SecretPattern[] = secretPatterns,
+): ProjectionResult<unknown> {
+	if (typeof value === "string") return projectText(value, sourcePath, store, patterns);
 	if (Array.isArray(value)) {
 		let maskCount = 0;
 		const projected = value.map((item, i) => {
-			const result = projectUnknownStrings(item, store, `${sourcePath}.${i}`);
+			const result = projectUnknownStrings(item, store, `${sourcePath}.${i}`, patterns);
 			maskCount += result.maskCount;
 			return result.value;
 		});
@@ -129,7 +147,7 @@ export function projectUnknownStrings(value: unknown, store: SecretArtifactStore
 	if (isRecord(value)) {
 		let maskCount = 0;
 		const entries = Object.entries(value).map(([key, item]) => {
-			const result = projectUnknownStrings(item, store, `${sourcePath}.${key}`);
+			const result = projectUnknownStrings(item, store, `${sourcePath}.${key}`, patterns);
 			maskCount += result.maskCount;
 			return [key, result.value] as const;
 		});

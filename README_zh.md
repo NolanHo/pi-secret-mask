@@ -103,6 +103,77 @@ Secret 保存在:
 - assignment value: 至少 8 个字符
 - known-prefix suffix: prefix 表达式后至少 12 个字符
 
+## 自定义匹配配置
+
+你可以通过配置文件添加 literal 或 regex pattern, 不需要修改 package 源码.
+
+配置文件按顺序加载:
+
+1. 全局: `$PI_CODING_AGENT_DIR/pi-secret-mask/config.json`; 如果没有设置 `PI_CODING_AGENT_DIR`, 则使用 `~/.pi/agent/pi-secret-mask/config.json`.
+2. 项目: `<cwd>/.pi/secret-mask.json`.
+3. 显式指定: `PI_SECRET_MASK_CONFIG` 指向的路径.
+
+后加载的文件会追加 pattern; 不会禁用默认 pattern.
+
+Literal match 示例, 适合用户自己的密码或 token:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "literal",
+      "name": "personal-db-password",
+      "value": "correct horse battery staple",
+      "label": "database password"
+    }
+  ]
+}
+```
+
+Regex match 示例, 整个 match 都是 secret:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "regex",
+      "name": "internal-token",
+      "pattern": "INTERNAL_[A-Za-z0-9]{32}",
+      "label": "internal token"
+    }
+  ]
+}
+```
+
+Regex match 示例, 保留 prefix, 只 mask capture group 1:
+
+```json
+{
+  "patterns": [
+    {
+      "type": "regex",
+      "name": "legacy-password-field",
+      "pattern": "legacy_password=([^\\s]+)",
+      "secretGroup": 1,
+      "label": "legacy password"
+    }
+  ]
+}
+```
+
+字段说明:
+
+| 字段 | 适用范围 | 含义 |
+|---|---|---|
+| `type` | all | `literal` 或 `regex` |
+| `name` | all | 稳定名称, 写入 artifact metadata |
+| `label` | all | marker 里展示给模型看的标签 |
+| `value` | literal | 要 mask 的精确字符串 |
+| `caseSensitive` | literal | 默认 `true`; 设为 `false` 后 literal 匹配不区分大小写 |
+| `pattern` | regex | JavaScript 正则表达式 source string |
+| `flags` | regex | JavaScript regex flags; 自动添加 `g`, 自动移除 `y` |
+| `secretGroup` | regex | 要保存和 mask 的 capture group; 默认 `0`, 表示整个 match |
+
 ## 常见匹配不到的情况
 
 插件不能稳定捕获:
@@ -115,7 +186,7 @@ Secret 保存在:
 - 二进制文件或图片内容
 - 插件加载前已经进入旧 compaction summary 的 secret
 
-如果你的环境有自定义 token 格式, 在发布或安装前修改 `src/patterns.ts`, 添加对应 pattern.
+如果你的环境有自定义 token 格式, 在配置文件里添加 literal 或 regex pattern.
 
 ## 安全边界
 

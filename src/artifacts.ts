@@ -97,6 +97,6 @@ export class SecretArtifactStore {
 	}
 }
 
-function defaultAgentDir(): string {
+export function defaultAgentDir(): string {
 	return process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent");
 }

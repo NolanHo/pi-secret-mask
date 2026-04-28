@@ -1,6 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { generateBranchSummary, generateSummary } from "@mariozechner/pi-coding-agent";
 import { SecretArtifactStore } from "../src/artifacts.js";
+import { loadConfiguredPatterns } from "../src/config.js";
+import { secretPatterns } from "../src/patterns.js";
 import { projectMessages, projectSessionEntries, projectText, projectUnknownStrings } from "../src/project.js";
 import { containsInjectedSecret, injectSecretReferences, redactInjectedSecrets, replaceRecordContents } from "../src/secret-ref.js";
 import type { InjectedSecret } from "../src/secret-ref.js";
@@ -22,7 +24,18 @@ async function resolveAuth(ctx: ExtensionContext) {
 export default function secretMaskExtension(pi: ExtensionAPI) {
 	let enabled = true;
 	let errorPatchWarningShown = false;
+	const reportedConfigErrors = new Set<string>();
 	const toolSecrets = new Map<string, InjectedSecret[]>();
+
+	function patternsFor(ctx: ExtensionContext) {
+		const configured = loadConfiguredPatterns(ctx.cwd);
+		for (const error of configured.errors) {
+			if (reportedConfigErrors.has(error)) continue;
+			reportedConfigErrors.add(error);
+			ctx.ui.notify(`pi-secret-mask config ignored: ${error}`, "warning");
+		}
+		return [...secretPatterns, ...configured.patterns];
+	}
 
 	pi.registerCommand("secret-mask", {
 		description: "Control pi-secret-mask: status, on, off",
@@ -43,7 +56,11 @@ export default function secretMaskExtension(pi: ExtensionAPI) {
 				return;
 			}
 			const store = storeFor(ctx);
-			ctx.ui.notify(`pi-secret-mask ${enabled ? "enabled" : "disabled"}; artifacts: ${store.root}`, "info");
+			const configured = loadConfiguredPatterns(ctx.cwd);
+			ctx.ui.notify(
+				`pi-secret-mask ${enabled ? "enabled" : "disabled"}; artifacts: ${store.root}; configured patterns: ${configured.patterns.length}`,
+				"info",
+			);
 		},
 	});
 
@@ -54,14 +71,14 @@ export default function secretMaskExtension(pi: ExtensionAPI) {
 
 	pi.on("context", (event, ctx) => {
 		if (!enabled) return;
-		const projected = projectMessages(event.messages, storeFor(ctx), "context.messages");
+		const projected = projectMessages(event.messages, storeFor(ctx), "context.messages", patternsFor(ctx));
 		if (projected.maskCount > 0) ctx.ui.setStatus("pi-secret-mask", `masked ${projected.maskCount}`);
 		return projected.maskCount > 0 ? { messages: projected.value } : undefined;
 	});
 
 	pi.on("before_provider_request", (event, ctx) => {
 		if (!enabled) return;
-		const projected = projectUnknownStrings(event.payload, storeFor(ctx), "provider.payload");
+		const projected = projectUnknownStrings(event.payload, storeFor(ctx), "provider.payload", patternsFor(ctx));
 		return projected.maskCount > 0 ? projected.value : undefined;
 	});
 
@@ -95,10 +112,11 @@ export default function secretMaskExtension(pi: ExtensionAPI) {
 	pi.on("session_before_compact", async (event, ctx) => {
 		if (!enabled) return;
 		const store = storeFor(ctx);
-		const messagesToSummarize = projectMessages(event.preparation.messagesToSummarize, store, "compact.messagesToSummarize");
-		const turnPrefixMessages = projectMessages(event.preparation.turnPrefixMessages, store, "compact.turnPrefixMessages");
+		const patterns = patternsFor(ctx);
+		const messagesToSummarize = projectMessages(event.preparation.messagesToSummarize, store, "compact.messagesToSummarize", patterns);
+		const turnPrefixMessages = projectMessages(event.preparation.turnPrefixMessages, store, "compact.turnPrefixMessages", patterns);
 		const previousSummary = event.preparation.previousSummary
-			? projectText(event.preparation.previousSummary, "compact.previousSummary", store)
+			? projectText(event.preparation.previousSummary, "compact.previousSummary", store, patterns)
 			: { value: undefined, maskCount: 0 };
 		const maskCount = messagesToSummarize.maskCount + turnPrefixMessages.maskCount + previousSummary.maskCount;
 		if (maskCount === 0) return;
@@ -138,7 +156,7 @@ export default function secretMaskExtension(pi: ExtensionAPI) {
 	pi.on("session_before_tree", async (event, ctx) => {
 		if (!enabled) return;
 		const store = storeFor(ctx);
-		const projected = projectSessionEntries(event.preparation.entriesToSummarize, store, "tree.entriesToSummarize");
+		const projected = projectSessionEntries(event.preparation.entriesToSummarize, store, "tree.entriesToSummarize", patternsFor(ctx));
 		if (projected.maskCount === 0) return;
 
 		const auth = await resolveAuth(ctx);
